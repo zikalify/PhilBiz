@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const SOURCES = [
-  { id: "gma", name: "GMA News", feed: "https://data.gmanetwork.com/gno/rss/money/feed.xml", via: "jinahtml", host: "gmanetwork.com", path: "/news/" },
+  { id: "gma", name: "GMA News", feed: "https://data.gmanetwork.com/gno/rss/money/feed.xml", via: "jinafeedburner", host: "gmanetwork.com", path: "/story/" },
   { id: "rappler", name: "Rappler", feed: "https://www.rappler.com/business/feed/", via: "jina" },
   { id: "manilatimes", name: "The Manila Times", feed: "https://www.manilatimes.net/business/feed/", via: "jina" },
   { id: "interaksyon", name: "Interaksyon Business", feed: "https://interaksyon.philstar.com/business/feed/", via: "jina" },
@@ -77,6 +77,26 @@ async function viaJinaHtml(feed, host, path) {
   return out;
 }
 
+async function viaJinaFeedBurner(feed, host, path) {
+  const html = await get(`https://r.jina.ai/${feed}`, { "X-Return-Format": "html" });
+  const blocks = html.split(/class="regularitem"/i).slice(1);
+  const seen = new Set();
+  const out = [];
+  for (const b of blocks) {
+    const a = b.match(/<a[^>]+href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
+    if (!a) continue;
+    const href = a[1];
+    if (!href.includes(host) || (path && !href.includes(path))) continue;
+    if (seen.has(href)) continue;
+    const title = clean(stripTags(a[2]));
+    if (title.length < 15) continue;
+    const d = b.match(/Posted:\s*(?:<\/span>)?\s*([^<]+)/i);
+    seen.add(href);
+    out.push({ title, link: href, date: d ? when(d[1].trim()) : 0 });
+  }
+  return out;
+}
+
 async function viaXml(feed) {
   const text = await get(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(feed)}`);
   const blocks = [...text.matchAll(/<item[\s>][\s\S]*?<\/item>|<entry[\s>][\s\S]*?<\/entry>/g)].map((m) => m[0]);
@@ -90,7 +110,9 @@ async function viaXml(feed) {
 }
 
 async function fetchSource(src) {
-  const order = src.via === "jinahtml"
+  const order = src.via === "jinafeedburner"
+    ? [() => viaJinaFeedBurner(src.feed, src.host, src.path), () => viaRss2json(src.feed), () => viaXml(src.feed)]
+    : src.via === "jinahtml"
     ? [() => viaJinaHtml(src.feed, src.host, src.path), () => viaRss2json(src.feed), () => viaJina(src.feed), () => viaXml(src.feed)]
     : src.via === "jina"
       ? [() => viaJina(src.feed), () => viaRss2json(src.feed), () => viaXml(src.feed)]

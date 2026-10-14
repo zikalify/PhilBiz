@@ -10,7 +10,7 @@ const CONFIG = {
 };
 
 const SOURCES = [
-  { id: "gma", name: "GMA News", section: "Money", home: "https://www.gmanetwork.com/news/money/", feed: "https://data.gmanetwork.com/gno/rss/money/feed.xml", via: "jinahtml", host: "gmanetwork.com", path: "/news/" },
+  { id: "gma", name: "GMA News", section: "Money", home: "https://www.gmanetwork.com/news/money/", feed: "https://data.gmanetwork.com/gno/rss/money/feed.xml", via: "jinafeedburner", host: "gmanetwork.com", path: "/story/" },
   { id: "rappler", name: "Rappler", section: "Business", home: "https://www.rappler.com/business/", feed: "https://www.rappler.com/business/feed/", via: "jina" },
   { id: "manilatimes", name: "The Manila Times", section: "Business", home: "https://www.manilatimes.net/business", feed: "https://www.manilatimes.net/business/feed/", via: "jina" },
   { id: "interaksyon", name: "Interaksyon Business", section: "Business", home: "https://interaksyon.philstar.com/business/", feed: "https://interaksyon.philstar.com/business/feed/", via: "jina" },
@@ -129,6 +129,28 @@ async function fetchJinaHtml(feed, host, path) {
   return out;
 }
 
+async function fetchJinaFeedBurner(feed, host, path) {
+  const res = await fetch(JINA + feed, { headers: { "X-Return-Format": "html" }, cache: "no-store" });
+  if (!res.ok) throw new Error("jina " + res.status);
+  const html = await res.text();
+  const blocks = html.split(/class="regularitem"/i).slice(1);
+  const out = [];
+  const seen = new Set();
+  for (const b of blocks) {
+    const a = b.match(/<a[^>]+href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
+    if (!a) continue;
+    const href = a[1];
+    if (!href.includes(host) || (path && !href.includes(path))) continue;
+    if (seen.has(href)) continue;
+    const title = cleanTitle(stripTags(a[2]));
+    if (title.length < 15) continue;
+    const d = b.match(/Posted:\s*(?:<\/span>)?\s*([^<]+)/i);
+    seen.add(href);
+    out.push({ title, link: href, date: d ? parseDate(d[1].trim()) : 0 });
+  }
+  return out;
+}
+
 async function fetchXmlProxy(feed) {
   let lastErr;
   for (const proxy of XML_PROXIES) {
@@ -161,8 +183,10 @@ async function fetchXmlProxy(feed) {
 function chainsFor(src) {
   const md = () => fetchJina(src.feed);
   const html = () => fetchJinaHtml(src.feed, src.host, src.path);
+  const fb = () => fetchJinaFeedBurner(src.feed, src.host, src.path);
   const r2j = () => fetchRss2json(src.feed);
   const xml = () => fetchXmlProxy(src.feed);
+  if (src.via === "jinafeedburner") return [fb, r2j, xml];
   if (src.via === "jinahtml") return [html, r2j, md, xml];
   if (src.via === "jina") return [md, r2j, xml];
   return [r2j, md, xml];
