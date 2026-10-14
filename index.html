@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en-PH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PHILBIZ — Philippine Business News Wire</title>
+<meta name="description" content="Spartan, up-to-date headlines on Philippine business, money and markets. Free sources only.">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="mast-inner">
+    <div class="brand">
+      <h1><a href="./" title="Refresh">PHILBIZ</a></h1>
+      <span class="tagline">Philippine business news wire &middot; free sources only</span>
+    </div>
+    <div class="clock">
+      <div id="clock">--:--</div>
+      <div id="dateline">—</div>
+    </div>
+  </div>
+</header>
+
+<nav class="toolbar">
+  <div class="toolbar-inner">
+    <span id="status" class="status">Loading wire…</span>
+    <div class="tools">
+      <input id="filter" type="search" placeholder="filter headlines…" aria-label="Filter headlines" autocomplete="off">
+      <button id="refresh" type="button" title="Refresh now">↻ Refresh</button>
+    </div>
+  </div>
+</nav>
+
+<main>
+  <div id="wire" class="wire" aria-live="polite"></div>
+  <div id="empty" class="empty" hidden>
+    <p>Couldn't reach the newswires right now.</p>
+    <p class="small">Check your connection, then hit <strong>Refresh</strong>. If you opened this file directly
+      (<code>file://</code>), run it from a local web server instead so the browser allows network requests.</p>
+  </div>
+</main>
+
+<footer class="colophon">
+  <p>
+    <strong>PHILBIZ</strong> is a plain link wire. All headlines, links and trademarks belong to their
+    original publishers. Paywalled outlets are excluded — every link goes to a free-to-read article.
+  </p>
+  <p class="small" id="stats"></p>
+</footer>
+
+<script src="data/snapshot.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
