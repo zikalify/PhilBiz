@@ -52,10 +52,11 @@ function isPaid(url) {
 }
 
 function cleanTitle(t) {
-  return String(t || "")
+  const s = String(t || "")
     .replace(/\s+/g, " ")
     .replace(/\s*[-|–]\s*(GMA News Online|Rappler|The Manila Times|Interaksyon|Bilyonaryo|FinTech News Philippines).*$/i, "")
     .trim();
+  return s.length > 150 ? s.slice(0, 149).trimEnd() + "…" : s;
 }
 
 function normKey(t) {

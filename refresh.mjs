@@ -22,7 +22,7 @@ const MAX_AGE_DAYS = 21;
 
 const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
 const isPaid = (u) => PAID_HOSTS.includes(hostOf(u));
-const clean = (t) => String(t || "").replace(/\s+/g, " ").replace(/\s*[-|–]\s*(GMA News Online|Rappler|The Manila Times|Interaksyon|Bilyonaryo|FinTech News Philippines).*$/i, "").trim();
+const clean = (t) => { const s = String(t || "").replace(/\s+/g, " ").replace(/\s*[-|–]\s*(GMA News Online|Rappler|The Manila Times|Interaksyon|Bilyonaryo|FinTech News Philippines).*$/i, "").trim(); return s.length > 150 ? s.slice(0, 149).trimEnd() + "…" : s; };
 const key = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 80);
 const when = (v) => { const d = new Date(v); return isNaN(d) ? 0 : d.getTime(); };
 const decode = (s) => String(s).replace(/<!\[CDATA\[|\]\]>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").trim();
