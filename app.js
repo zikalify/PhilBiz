@@ -5,8 +5,9 @@ const CONFIG = {
   maxAgeDays: 21,
   perFeed: 30,
   newMs: 3 * 60 * 60 * 1000,
-  cacheKey: "philbiz.cache.v1",
+  cacheKey: "philbiz.cache.v3",
   cacheMs: 30 * 60 * 1000,
+  maxItems: 240,
 };
 
 const SOURCES = [
@@ -39,7 +40,13 @@ const els = {
   refresh: document.getElementById("refresh"),
 };
 
-let state = { items: [], updated: 0, loading: false };
+let state = { items: [], updated: 0, loading: false, newKeys: new Set() };
+let lastVisit = 0;
+let firstRun = true;
+
+function itemKey(it) {
+  return normKey(it.title) || it.link;
+}
 
 function hostOf(url) {
   try { return new URL(url).hostname.replace(/^www\./, ""); }
@@ -213,14 +220,31 @@ function collect(raw) {
       if (!it.link || isPaid(it.link)) return;
       const date = it.date || dateFromUrl(it.link);
       if (date && date < cutoff) return;
-      const key = normKey(it.title);
-      if (!key || seen.has(key)) return;
+      const key = normKey(it.title) || it.link;
+      if (seen.has(key)) return;
       seen.add(key);
       out.push({ title: it.title, link: it.link, date, source: src.name, sourceId: src.id });
     });
   });
   out.sort((a, b) => (b.date || 0) - (a.date || 0));
   return out;
+}
+
+function mergeItems(existing, incoming) {
+  const cutoff = Date.now() - CONFIG.maxAgeDays * 864e5;
+  const seen = new Set();
+  const out = [];
+  [...incoming, ...existing].forEach((it) => {
+    if (!it || !it.title || !it.link || isPaid(it.link)) return;
+    const date = it.date || dateFromUrl(it.link);
+    if (date && date < cutoff) return;
+    const key = normKey(it.title) || it.link;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ title: it.title, link: it.link, date, source: it.source, sourceId: it.sourceId });
+  });
+  out.sort((a, b) => (b.date || 0) - (a.date || 0));
+  return out.slice(0, CONFIG.maxItems);
 }
 
 function relTime(ts) {
@@ -236,7 +260,7 @@ function escapeHtml(s) {
 }
 
 function itemHtml(it) {
-  const fresh = it.date && Date.now() - it.date < CONFIG.newMs ? ' <span class="new-badge">NEW</span>' : "";
+  const fresh = state.newKeys.has(itemKey(it)) ? ' <span class="new-badge">NEW</span>' : "";
   const meta = [it.source, relTime(it.date)].filter(Boolean).join(" · ");
   return (
     '<li data-search="' + escapeHtml((it.title + " " + it.source).toLowerCase()) + '">' +
@@ -294,8 +318,13 @@ function readCache() {
   } catch (_) { return null; }
 }
 function writeCache() {
-  try { localStorage.setItem(CONFIG.cacheKey, JSON.stringify({ updated: state.updated, items: state.items })); }
-  catch (_) {}
+  try {
+    localStorage.setItem(CONFIG.cacheKey, JSON.stringify({
+      updated: state.updated,
+      lastVisit,
+      items: state.items,
+    }));
+  } catch (_) {}
 }
 
 async function refresh() {
@@ -306,6 +335,7 @@ async function refresh() {
   const cached = readCache();
   if (!state.items.length && cached) { state.items = cached.items; state.updated = cached.updated; render(); }
 
+  const before = new Set(state.items.map(itemKey));
   setStatus("Updating wire…");
   const results = await Promise.allSettled(SOURCES.map(async (src) => ({ src, items: await fetchFeed(src) })));
   const raw = [];
@@ -313,11 +343,17 @@ async function refresh() {
   results.forEach((r) => { if (r.status === "fulfilled" && r.value.items.length) { raw.push(r.value); ok++; } });
 
   if (ok) {
-    state.items = collect(raw);
+    const fresh = collect(raw);
+    state.items = mergeItems(state.items, fresh);
     state.updated = Date.now();
+    if (!firstRun) {
+      state.items.forEach((it) => { const k = itemKey(it); if (!before.has(k)) state.newKeys.add(k); });
+    }
+    firstRun = false;
     writeCache();
     render();
-    setStatus("Live · " + ok + "/" + SOURCES.length + " wires · updated " + new Date(state.updated).toLocaleTimeString());
+    const added = state.newKeys.size;
+    setStatus("Live · " + ok + "/" + SOURCES.length + " wires" + (added ? " · " + added + " new" : "") + " · " + state.items.length + " saved · " + new Date(state.updated).toLocaleTimeString());
   } else if (state.items.length) {
     setStatus("Offline — last saved wire · " + new Date(state.updated || Date.now()).toLocaleTimeString());
   } else if (cached) {
@@ -361,16 +397,27 @@ setInterval(refresh, CONFIG.refreshMs);
 
 (function init() {
   const cached = readCache();
-  if (cached && Date.now() - cached.updated < CONFIG.cacheMs) {
+  if (cached) {
+    firstRun = false;
     state.items = cached.items;
     state.updated = cached.updated;
+    lastVisit = cached.lastVisit || 0;
+    if (lastVisit) {
+      state.items.forEach((it) => {
+        if ((it.date || 0) > lastVisit) state.newKeys.add(itemKey(it));
+      });
+    }
     render();
-    setStatus("Cached · updated " + new Date(cached.updated).toLocaleTimeString());
+    setStatus((state.newKeys.size ? state.newKeys.size + " new since last visit · " : "") + "cached " + new Date(cached.updated).toLocaleTimeString());
   } else if (window.PHILBIZ_SNAPSHOT && window.PHILBIZ_SNAPSHOT.items.length) {
     state.items = window.PHILBIZ_SNAPSHOT.items;
     state.updated = window.PHILBIZ_SNAPSHOT.updated;
     render();
     setStatus("Snapshot loaded · refreshing…");
   }
+  lastVisit = Date.now();
+  writeCache();
   refresh();
 })();
+
+window.addEventListener("pagehide", () => { lastVisit = Date.now(); writeCache(); });

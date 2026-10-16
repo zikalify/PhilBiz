@@ -20,6 +20,14 @@ Interaksyon Business, Bilyonaryo, FinTech News Philippines.
 Paywalled outlets (BusinessWorld, Business Inquirer, Philippine Star, Manila
 Bulletin) are **excluded** — only free-to-read articles are linked.
 
+## Caching
+
+Stories are cached in `localStorage` (`philbiz.cache.v3`) after every successful
+fetch, so the next visit shows them instantly — even offline. On refresh,
+headlines already cached are kept and only stories that were not present before
+are flagged with a red **NEW** badge. On return visits, the wire also shows how
+many stories are new since your last visit.
+
 ## Running locally
 
 ```
